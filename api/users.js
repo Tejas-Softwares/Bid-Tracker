@@ -46,6 +46,7 @@ export default route(async (req, res) => {
       break;
     case 'role': {
       const role = b.role === 'admin' ? 'admin' : 'member';
+      if (u.id === me.id && role !== 'admin') fail(400, 'You cannot make yourself a member. Ask another admin to change your role.', 'self');
       if (u.role === 'admin' && role !== 'admin' && (await admins()) <= 1) fail(400, 'There must be at least one admin.', 'last_admin');
       await q(`update users set role = $2 where id = $1`, [u.id, role]);
       await log('user.role', `Made ${u.name} ${role === 'admin' ? 'an admin' : 'a member'}`);

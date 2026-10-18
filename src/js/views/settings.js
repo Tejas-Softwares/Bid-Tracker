@@ -75,7 +75,7 @@ function team() {
   <div class="set-block"><h3>People who can sign in</h3><p>Admins can approve accounts, change lists and settings, restore deleted bids and backups. Members do everything else.</p>
     <div class="people">${active.map((u) => personRow(u, `
       <span class="small muted hide-sm">${u.lastLogin ? `Signed in ${esc(timeAgo(u.lastLogin))}` : 'Not signed in yet'}</span>
-      <select class="inp inp-sm" data-user-role="${esc(u.id)}" aria-label="Role of ${esc(u.name)}"><option value="member" ${u.role !== 'admin' ? 'selected' : ''}>Member</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option></select>
+      ${u.id === store.user?.id ? '' : `<select class="inp inp-sm" data-user-role="${esc(u.id)}" aria-label="Role of ${esc(u.name)}"><option value="member" ${u.role !== 'admin' ? 'selected' : ''}>Member</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option></select>`}
       <button class="icon-btn" data-act="user-menu" data-id="${esc(u.id)}" aria-label="More for ${esc(u.name)}">${icon('more')}</button>`)).join('')}</div></div>
   ${off.length ? `<div class="set-block"><h3>Turned off</h3><p>These people cannot sign in. Their name stays on everything they did.</p>
     <div class="people">${off.map((u) => personRow(u, `<button class="btn btn-sm" data-act="user-do" data-do="enable" data-id="${esc(u.id)}">Turn on again</button>`)).join('')}</div></div>` : ''}
@@ -203,7 +203,11 @@ export function settingsChange(el) {
     toast('Saved');
     return true;
   }
-  if (el.dataset.userRole) { userDo('role', el.dataset.userRole, { role: el.value }); return true; }
+  if (el.dataset.userRole) {
+    if (el.dataset.userRole === store.user?.id) { toast('You cannot change your own role. Ask another admin.'); el.value = 'admin'; return true; }
+    userDo('role', el.dataset.userRole, { role: el.value });
+    return true;
+  }
   return false;
 }
 
