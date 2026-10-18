@@ -161,6 +161,26 @@ export function pickFile(accept) {
   });
 }
 export function isURL(s) { return /^https?:\/\/\S+$/i.test(String(s || '').trim()); }
+export function emailIssue(s) {
+  s = String(s || '').trim();
+  if (!s) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(s) || /@\.|\.@|\.\./.test(s)) return 'Enter a complete email, for example name@company.com';
+  return '';
+}
+export function phoneIssue(s) {
+  s = String(s || '').trim();
+  if (!s) return '';
+  const digits = s.replace(/\D/g, '');
+  if (!/^[+]?[\d][\d\s\-().]*$/.test(s) || digits.length < 8 || digits.length > 15) return 'Enter a valid phone number';
+  if (digits.length === 10 && !/^[6-9]/.test(digits) && !s.startsWith('+')) return 'Enter a valid phone number';
+  return '';
+}
+export function urlIssue(s) {
+  s = String(s || '').trim();
+  if (!s) return '';
+  if (!isURL(s)) return 'Paste a full link starting with https://';
+  return '';
+}
 export function normName(s) { return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/\b(pvt|private|ltd|limited|llp|inc|co|company|india)\b/g, '').replace(/[^a-z0-9]+/g, ''); }
 // Similarity of two short strings (Dice coefficient on bigrams), used to warn about duplicate bids
 export function similarity(a, b) {

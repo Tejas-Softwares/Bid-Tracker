@@ -1,5 +1,5 @@
 // Shared UI pieces: toasts, modals, menus, tooltips, form fields, chips.
-import { esc, inrShort, inr, groupIndian, dueWords, fmtDate, initials } from './util.js';
+import { esc, inrShort, inr, groupIndian, dueWords, fmtDate, initials, emailIssue, phoneIssue, urlIssue, parseMoney } from './util.js';
 import { STATUS } from './config.js';
 import { icon } from './icons.js';
 
@@ -17,32 +17,69 @@ export function toast(msg, opts = {}) {
 
 // ---------- modal ----------
 // Returns { el, close }. `actions` = [{ label, cls, onClick(el) -> false to keep open }]
-export function modal({ title, sub = '', body = '', actions = [], wide = false, onMount, onClose, dismissable = true }) {
+export function modal({ title, sub = '', body = '', actions = [], wide = false, onMount, onClose, dismissable = true, beforeClose }) {
   const wrap = document.createElement('div');
   wrap.className = 'modal-wrap';
+  wrap.style.zIndex = String(80 + document.querySelectorAll('.modal-wrap').length * 10);
   wrap.innerHTML = `<div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
     <header><h2>${esc(title)}</h2>${sub ? `<p>${sub}</p>` : ''}</header>
     <div class="m-body">${body}</div>
     ${actions.length ? `<footer>${actions.map((a, i) => a.spacer ? '<span class="grow"></span>' : `<button type="button" class="btn ${a.cls || ''}" data-i="${i}">${esc(a.label)}</button>`).join('')}</footer>` : ''}
   </div>`;
   const prevFocus = document.activeElement;
-  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey, true); onClose && onClose(); if (prevFocus && prevFocus.focus) try { prevFocus.focus(); } catch { /* */ } };
+  let busy = false;
+  const isTop = () => [...document.querySelectorAll('.modal-wrap')].at(-1) === wrap;
+  const finish = () => { wrap.remove(); document.removeEventListener('keydown', onKey, true); onClose && onClose(); if (prevFocus && prevFocus.focus) try { prevFocus.focus(); } catch { /* */ } };
+  const tryClose = async (via) => {
+    if (busy || !wrap.isConnected) return;
+    if (via !== 'ok' && !isTop()) return;
+    if (via !== 'ok' && beforeClose) {
+      busy = true;
+      let allow = true;
+      try { allow = (await beforeClose(wrap)) !== false; } finally { busy = false; }
+      if (!allow) return;
+    }
+    finish();
+  };
   const onKey = (e) => {
-    if (e.key === 'Escape' && dismissable) { e.stopPropagation(); close(); }
+    if (!isTop()) return;
+    if (e.key === 'Escape' && dismissable) { e.stopPropagation(); tryClose('esc'); }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { const p = actions.findIndex((a) => /primary|blue/.test(a.cls || '')); if (p >= 0) { e.preventDefault(); run(p); } }
   };
-  const run = async (i) => { const a = actions[i]; if (!a || !a.onClick) return close(); const r = await a.onClick(wrap); if (r !== false) close(); };
+  const run = async (i) => {
+    const a = actions[i];
+    if (!a) return;
+    if (!a.onClick) return tryClose('cancel');
+    const r = await a.onClick(wrap);
+    if (r !== false) tryClose('ok');
+  };
   wrap.addEventListener('click', (e) => {
     const b = e.target.closest('footer button[data-i]');
     if (b) run(+b.dataset.i);
-    else if (e.target === wrap && dismissable) close();
+    else if (e.target === wrap && dismissable) tryClose('backdrop');
   });
   document.addEventListener('keydown', onKey, true);
   document.body.appendChild(wrap);
   onMount && onMount(wrap);
   const first = wrap.querySelector('input:not([type=hidden]):not([readonly]), select, textarea');
   setTimeout(() => (first || wrap.querySelector('footer .btn-primary, footer .btn-blue') || wrap.querySelector('button'))?.focus(), 30);
-  return { el: wrap, close };
+  return { el: wrap, close: () => tryClose('ok') };
+}
+
+export function unsavedBox({ title = 'Save your changes?', text = 'You have entered details that have not been saved.', save = 'Save', discard = 'Discard' } = {}) {
+  return new Promise((resolve) => {
+    let answered = false;
+    modal({
+      title, body: `<p style="margin:0;color:var(--ink-2)">${text}</p>`,
+      actions: [
+        { label: discard, onClick: () => { answered = true; resolve('discard'); } },
+        { spacer: true },
+        { label: 'Keep editing', onClick: () => { answered = true; resolve(false); } },
+        { label: save, cls: 'btn-primary', onClick: () => { answered = true; resolve('save'); } },
+      ],
+      onClose: () => { if (!answered) resolve(false); },
+    });
+  });
 }
 
 export function confirmBox(text, { title = 'Are you sure?', ok = 'Yes', danger = false } = {}) {
@@ -161,14 +198,152 @@ export function meter(r) {
 }
 
 // ---------- form fields ----------
+export function pwMarkup(inner) {
+  return `<div class="pw-wrap">${inner}<button type="button" class="pw-toggle" data-show-pw aria-label="Show password" aria-pressed="false">${icon('eye')}</button></div>`;
+}
+
+export function setFieldErr(el, msg) {
+  const f = el?.closest?.('.field');
+  if (!f) return;
+  if (msg) {
+    f.classList.add('err');
+    let m = f.querySelector('.err-msg');
+    if (!m) { m = document.createElement('div'); m.className = 'err-msg'; m.setAttribute('role', 'alert'); f.appendChild(m); }
+    m.textContent = msg;
+  } else {
+    f.classList.remove('err');
+    f.querySelector('.err-msg')?.remove();
+  }
+}
+
+function validateKind(el) {
+  if (el.dataset.validate) return el.dataset.validate;
+  const n = el.name || el.dataset.f || el.dataset.cf || '';
+  const t = (el.getAttribute('type') || '').toLowerCase();
+  if (t === 'email' || /email/i.test(n)) return 'email';
+  if (t === 'tel' || /phone/i.test(n)) return 'phone';
+  if (t === 'url' || n === 'docLink') return 'url';
+  if (el.dataset.type === 'money') return 'money';
+  if (el.dataset.type === 'int' || el.dataset.type === 'num' || el.dataset.t === 'int' || el.dataset.t === 'num' || el.dataset.t === 'pct') return 'num';
+  if (n === 'password2' || n === 'next2') return 'password2';
+  if ((t === 'password' || n === 'password' || n === 'next') && n !== 'code' && n !== 'current') return 'password';
+  if (t === 'time') return 'time';
+  return '';
+}
+
+export function inputIssue(el) {
+  if (!el || el.disabled || el.readOnly) return '';
+  const v = String(el.value ?? '').trim();
+  const kind = validateKind(el);
+  if (!kind) return '';
+  if (kind === 'email') return emailIssue(v);
+  if (kind === 'phone') return phoneIssue(v);
+  if (kind === 'url') return urlIssue(v);
+  if (kind === 'money') {
+    if (!v) return '';
+    const n = parseMoney(el.value);
+    return (n === null || isNaN(n)) ? 'Type an amount like 4.5 cr, 85 L or 8500000' : '';
+  }
+  if (kind === 'num') {
+    if (el.value === '' || el.value === null) return '';
+    const n = Number(el.value);
+    if (!isFinite(n)) return 'Enter a number';
+    const min = el.min !== '' && el.min != null ? Number(el.min) : null;
+    const max = el.max !== '' && el.max != null ? Number(el.max) : null;
+    if (min != null && isFinite(min) && n < min) return `Enter ${min} or more`;
+    if (max != null && isFinite(max) && n > max) return `Enter ${max} or less`;
+    return '';
+  }
+  if (kind === 'password') {
+    if (!v) return '';
+    const min = Number(el.getAttribute('minlength')) || 8;
+    if (v.length < min) return `At least ${min} characters`;
+    return '';
+  }
+  if (kind === 'password2') {
+    if (!v && !(el.form || el.closest('form, .modal, .drawer, .set-block'))?.querySelector('[name="password"], [name="next"]')?.value) return '';
+    const form = el.form || el.closest('form, .modal, .drawer, .set-block');
+    const matchName = el.dataset.match || (el.name === 'next2' ? 'next' : 'password');
+    const other = form?.querySelector(`[name="${matchName}"]`)?.value || '';
+    if (!v && !other) return '';
+    if (v !== other) return 'The two passwords are not the same';
+    return '';
+  }
+  if (kind === 'time') {
+    if (!v) return '';
+    if (!/^\d{2}:\d{2}$/.test(v)) return 'Enter a valid time';
+    return '';
+  }
+  return '';
+}
+
+export function checkInput(el) {
+  if (!el || !el.closest) return true;
+  if (el.type === 'hidden' || el.type === 'checkbox' || el.type === 'radio' || el.tagName === 'BUTTON') return true;
+  if (!el.closest('.field')) return true;
+  const msg = inputIssue(el);
+  setFieldErr(el, msg);
+  return !msg;
+}
+
+export function checkForm(root) {
+  let first = null;
+  root.querySelectorAll('input, select, textarea').forEach((el) => {
+    if (!checkInput(el) && !first) first = el;
+  });
+  first?.focus();
+  return !first;
+}
+
+export function initFormChecks() {
+  document.addEventListener('focusout', (e) => {
+    const el = e.target;
+    if (el && el.matches?.('input, select, textarea')) checkInput(el);
+  }, true);
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!el || !el.matches?.('input, select, textarea')) return;
+    const kind = validateKind(el);
+    if (el.closest('.field.err') || kind === 'password2') checkInput(el);
+    if (kind === 'password') {
+      const form = el.form || el.closest('form, .modal, .set-block');
+      const other = form?.querySelector('[name="password2"], [name="next2"]');
+      if (other && (other.value || other.closest('.field.err'))) checkInput(other);
+    }
+  });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-show-pw]');
+    if (!b) return;
+    e.preventDefault();
+    const inp = b.closest('.pw-wrap')?.querySelector('input');
+    if (!inp) return;
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    b.setAttribute('aria-pressed', show ? 'true' : 'false');
+    b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    b.innerHTML = icon(show ? 'eyeOff' : 'eye');
+  });
+}
+
 // fld({ label, name, type, value, options, hint, cls, placeholder, req, attrs, list })
 export function fld(f) {
   const id = 'f_' + (f.id || f.name || Math.random().toString(36).slice(2));
   const v = f.value ?? '';
   const data = f.data || '';
   const req = f.req ? ' <span class="req">*</span>' : '';
+  const nm = f.name || '';
+  let validate = f.validate || '';
+  if (!validate) {
+    if (f.type === 'email' || /email/i.test(nm)) validate = 'email';
+    else if (f.type === 'tel' || f.type === 'phone' || /phone/i.test(nm)) validate = 'phone';
+    else if (f.type === 'url' || nm === 'docLink') validate = 'url';
+    else if (nm === 'password2' || nm === 'next2') validate = 'password2';
+    else if (f.type === 'password' && nm !== 'code' && nm !== 'current') validate = 'password';
+  }
+  const match = validate === 'password2' ? ` data-match="${esc(f.match || (nm === 'next2' ? 'next' : 'password'))}"` : '';
+  const vAttr = validate ? ` data-validate="${validate}"${match}` : '';
   let input = '';
-  const common = `id="${id}" name="${esc(f.name || '')}" ${data} ${f.attrs || ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''}`;
+  const common = `id="${id}" name="${esc(nm)}" ${data} ${f.attrs || ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''}${vAttr}`;
   switch (f.type) {
     case 'textarea':
       input = `<textarea ${common} rows="${f.rows || 3}">${esc(v)}</textarea>`; break;
@@ -184,11 +359,22 @@ export function fld(f) {
       break;
     }
     case 'date': input = `<input ${common} type="date" value="${esc(v)}" data-type="date">`; break;
-    case 'time': input = `<input ${common} type="time" value="${esc(v)}">`; break;
+    case 'time': input = `<input ${common} type="time" value="${esc(v)}" data-validate="time">`; break;
     case 'int': input = `<input ${common} type="number" inputmode="numeric" step="1" min="${f.min ?? 0}" value="${esc(v)}" data-type="int">`; break;
     case 'pct': input = `<input ${common} type="number" inputmode="decimal" step="0.5" min="0" max="100" value="${esc(v)}" data-type="num">`; break;
     case 'url': input = `<input ${common} type="url" value="${esc(v)}" placeholder="${esc(f.placeholder || 'Paste a OneDrive or SharePoint link')}">`; break;
-    default: input = `<input ${common} type="text" value="${esc(v)}" ${f.list ? `list="${f.list}"` : ''} autocomplete="off">`;
+    case 'email': input = `<input ${common} type="email" value="${esc(v)}" autocomplete="${esc(f.autocomplete || 'email')}">`; break;
+    case 'tel':
+    case 'phone': input = `<input ${common} type="tel" value="${esc(v)}" inputmode="tel">`; break;
+    case 'password': {
+      const min = f.minlength ? ` minlength="${f.minlength}"` : '';
+      input = pwMarkup(`<input ${common} type="password"${min} value="${esc(v)}">`);
+      break;
+    }
+    default: {
+      const typ = validate === 'email' ? 'email' : validate === 'phone' ? 'tel' : 'text';
+      input = `<input ${common} type="${typ}" value="${esc(v)}" ${f.list ? `list="${f.list}"` : ''} autocomplete="${esc(f.autocomplete || 'off')}">`;
+    }
   }
   return `<div class="field ${f.cls || ''}"><label for="${id}">${esc(f.label)}${req}</label>${input}${f.hint ? `<div class="hint">${f.hint}</div>` : ''}</div>`;
 }

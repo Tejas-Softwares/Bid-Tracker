@@ -3,7 +3,7 @@ import { store } from '../store.js';
 import { derived, companyOf, companyInfo } from '../derive.js';
 import { STATUS, STATUSES, PIPELINE_KEYS, EMD_FORMS, EMD_STATUSES, RANKS } from '../config.js';
 import { esc, fmtDate, fmtDateTime, timeAgo, inr, inrShort, signedPct, pct, dueWords, fyLabel, isURL, parseMoney, fmtTime, addDays } from '../util.js';
-import { fld, datalist, chip, avatar, meter, money, icon, popMenu, toast } from '../ui.js';
+import { fld, datalist, chip, avatar, meter, money, icon, popMenu, toast, setFieldErr, inputIssue } from '../ui.js';
 import { ui, closeBid, openBid, openClient, rerender } from '../nav.js';
 import { setStatus, revisionModal, revLabel, setChecklist, deleteBid, duplicateBid, addNote, ensureClient, teamOptions, ownerUid, wireMoney, logEvent, quickNoteModal } from '../actions.js';
 import { ntAddModal, ntEditModal } from '../nt.js';
@@ -97,7 +97,7 @@ function detailsTab(b, i, d) {
       ${F({ label: "Client's enquiry or RFQ number", name: 'enquiryRef' }, b)}
       ${F({ label: 'Consultant or PMC', name: 'consultant', list: 'dl-p-cons' }, b)}
       <div class="field span-all"><span class="lbl">Scope of work</span><div class="chips-input">${s.scopes.map((x) => `<button type="button" class="tog ${scopes.has(x) ? 'on' : ''}" data-act="toggle-scope" data-scope="${esc(x)}" aria-pressed="${scopes.has(x)}">${esc(x)}</button>`).join('')}${[...scopes].filter((x) => !s.scopes.includes(x)).map((x) => `<button type="button" class="tog on" data-act="toggle-scope" data-scope="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
-      <div class="field span-all"><label for="f_docLink">Tender documents folder</label><div style="display:flex;gap:8px"><input id="f_docLink" type="url" data-f="docLink" value="${esc(b.docLink || '')}" placeholder="Paste the OneDrive or SharePoint folder link" style="flex:1">${isURL(b.docLink) ? `<a class="btn" href="${esc(b.docLink)}" target="_blank" rel="noopener">${icon('open')} Open</a>` : ''}</div></div>
+      <div class="field span-all"><label for="f_docLink">Tender documents folder</label><div style="display:flex;gap:8px"><input id="f_docLink" type="url" data-f="docLink" data-validate="url" value="${esc(b.docLink || '')}" placeholder="Paste the OneDrive or SharePoint folder link" style="flex:1">${isURL(b.docLink) ? `<a class="btn" href="${esc(b.docLink)}" target="_blank" rel="noopener">${icon('open')} Open</a>` : ''}</div></div>
       ${F({ label: 'Remarks', name: 'remarks', type: 'textarea', rows: 2, cls: 'span-all', placeholder: 'Anything the team should know at a glance' }, b)}
     </div>
   </div>
@@ -291,6 +291,9 @@ export function saveField(el) {
   const f = el.dataset.f;
   const t = el.dataset.t || el.dataset.type;
   let v = el.value;
+  const issue = inputIssue(el);
+  if (issue) { setFieldErr(el, issue); el.focus(); return; }
+  setFieldErr(el, '');
   if (t === 'money') {
     const n = parseMoney(v);
     if (v.trim() && (n === null || isNaN(n))) { toast('Type an amount like 4.5 cr, 85 L or 8500000'); el.focus(); return; }

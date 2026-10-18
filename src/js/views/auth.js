@@ -1,13 +1,21 @@
 // Sign in, create an account, first-time setup and setting a new password from a reset link.
 import { COMPANY } from '../config.js';
 import { esc } from '../util.js';
-import { icon } from '../ui.js';
+import { icon, pwMarkup, checkInput } from '../ui.js';
 import { BRAND } from '../brand.gen.js';
 import { api } from '../server.js';
 
 export const authState = { screen: 'signin', error: '', info: '', busy: false, resetToken: '', resetEmail: '', email: '' };
 
-const field = (label, name, type = 'text', attrs = '') => `<div class="field"><label for="a_${name}">${esc(label)}</label><input id="a_${name}" name="${name}" type="${type}" ${attrs}></div>`;
+const field = (label, name, type = 'text', attrs = '') => {
+  let extra = attrs;
+  if (type === 'email') extra += ' data-validate="email"';
+  if (name === 'password' && type === 'password') extra += ' data-validate="password"';
+  if (name === 'password2') extra += ' data-validate="password2" data-match="password"';
+  let input = `<input id="a_${name}" name="${name}" type="${type}" ${extra}>`;
+  if (type === 'password') input = pwMarkup(input);
+  return `<div class="field"><label for="a_${name}">${esc(label)}</label>${input}</div>`;
+};
 
 export function renderAuth() {
   const s = authState;
@@ -32,7 +40,7 @@ export function renderAuth() {
         <div class="grid2">${field('Your name', 'name', 'text', 'autocomplete="name" required')}${field('Position', 'position', 'text', 'placeholder="e.g. Estimation engineer" required')}</div>
         ${field('Work email (this is your username)', 'email', 'email', 'autocomplete="username" required')}
         <div class="grid2">${field('Password', 'password', 'password', 'autocomplete="new-password" minlength="8" required')}${field('Type it again', 'password2', 'password', 'autocomplete="new-password" required')}</div>
-        <div class="hint">At least 8 characters. Only you will know it.</div>
+        <div class="hint">At least 8 characters.</div>
         <button class="btn btn-primary btn-lg" type="submit" ${s.busy ? 'disabled' : ''}>Create account</button>
         <p class="auth-alt">Already have an account? <a href="#" data-auth-go="signin">Sign in</a></p>
       </form>`;
@@ -85,7 +93,15 @@ export async function submitAuth(form) {
   const pw2 = form.querySelector('[name="password2"]')?.value;
   const kind = form.dataset.auth;
   s.error = ''; s.info = '';
-  if (kind !== 'signin' && pw2 !== undefined && pw !== pw2) { s.error = 'The two passwords are not the same.'; return null; }
+  if (kind !== 'signin' && pw2 !== undefined && pw !== pw2) {
+    const p2 = form.querySelector('[name="password2"]');
+    if (p2) checkInput(p2);
+    s.error = 'The two passwords are not the same.';
+    return null;
+  }
+  if (kind !== 'signin' && pw && pw.length < 8) { s.error = 'Use at least 8 characters.'; return null; }
+  const emailEl = form.querySelector('[name="email"]');
+  if (emailEl && !checkInput(emailEl)) { s.error = 'Enter a complete email address.'; return null; }
   s.busy = true;
   try {
     if (kind === 'signin') {

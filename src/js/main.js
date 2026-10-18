@@ -3,7 +3,7 @@ import { store, prefs } from './store.js';
 import { derived, view } from './derive.js';
 import { STATUS, OPEN_KEYS } from './config.js';
 import { esc, today, timeAgo, plural, debounce, initials } from './util.js';
-import { icon, toast, popMenu, initTips, avatar, confirmBox } from './ui.js';
+import { icon, toast, popMenu, initTips, initFormChecks, avatar, confirmBox } from './ui.js';
 import { ui, setRenderer, rerender, go, openBid, closeBid, openClient, closeClient, readHash, saveFilters } from './nav.js';
 import { api, net, startSync, stopSync, pull, pushSoon, flush, setSignedOutHandler } from './server.js';
 import { newBidModal, setStatus, statusMenuItems, quickNoteModal, emdReturned } from './actions.js';
@@ -367,6 +367,7 @@ function onKey(e) {
 async function start() {
   shell();
   initTips();
+  initFormChecks();
   view.company = prefs.get('company', '');
   setRenderer(renderAll);
   setSignedOutHandler((err) => { if (signedIn) leaveApp(err.message || 'Your session has ended. Sign in again.'); });

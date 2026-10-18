@@ -4,7 +4,7 @@ import { store, prefs } from '../store.js';
 import { derived } from '../derive.js';
 import { STATUSES, DEFAULT_SETTINGS } from '../config.js';
 import { esc, timeAgo, download, today, pickFile, plural, fmtDateTime } from '../util.js';
-import { icon, modal, toast, confirmBox, typedConfirm, fld, avatar, popMenu } from '../ui.js';
+import { icon, modal, toast, confirmBox, typedConfirm, fld, avatar, popMenu, checkForm, checkInput } from '../ui.js';
 import { ui, rerender } from '../nav.js';
 import { api, pull, flush } from '../server.js';
 import { importExcelFlow, exportExcel } from '../excel.js';
@@ -43,9 +43,9 @@ function account() {
     </form></div>
   <div class="set-block"><h3>Password</h3><p>At least 8 characters. Nobody else, admins included, can see it.</p>
     <form data-set-form="password" class="grid3">
-      <div class="field"><label for="pw_cur">Current password</label><input id="pw_cur" name="current" type="password" autocomplete="current-password"></div>
-      <div class="field"><label for="pw_new">New password</label><input id="pw_new" name="next" type="password" autocomplete="new-password" minlength="8"></div>
-      <div class="field"><label for="pw_new2">New password again</label><input id="pw_new2" name="next2" type="password" autocomplete="new-password"></div>
+      ${fld({ label: 'Current password', name: 'current', type: 'password', id: 'pw_cur', attrs: 'autocomplete="current-password"' })}
+      ${fld({ label: 'New password', name: 'next', type: 'password', id: 'pw_new', minlength: 8, attrs: 'autocomplete="new-password" minlength="8"' })}
+      ${fld({ label: 'New password again', name: 'next2', type: 'password', id: 'pw_new2', validate: 'password2', match: 'next', attrs: 'autocomplete="new-password"' })}
       <div class="span-all"><button class="btn" type="submit">Change password</button></div>
     </form></div>
   <div class="set-block"><h3>Sign out</h3><p>Signs you out of this browser and clears the copy of the bids kept here. Do this on a shared or borrowed computer.</p>
@@ -222,7 +222,13 @@ export async function settingsSubmit(form) {
   }
   if (kind === 'password') {
     if (!v('current') || !v('next')) { toast('Enter your current and new password'); return; }
-    if (v('next') !== v('next2')) { toast('The two new passwords are not the same'); return; }
+    if (v('next') !== v('next2')) {
+      const p2 = form.querySelector('[name="next2"]');
+      if (p2) checkInput(p2);
+      toast('The two new passwords are not the same');
+      return;
+    }
+    if (!checkForm(form)) return;
     try {
       await api('auth', { method: 'POST', body: { action: 'password', current: v('current'), next: v('next') } });
       form.reset();

@@ -3,7 +3,7 @@ import { store } from '../store.js';
 import { derived, stats } from '../derive.js';
 import { STATUS, OPEN_KEYS } from '../config.js';
 import { esc, inrShort, pct, fmtDate, normName, plural, groupBy, isURL } from '../util.js';
-import { icon, chip, avatar, emptyState, fld, modal, toast, confirmBox, popMenu, money } from '../ui.js';
+import { icon, chip, avatar, emptyState, fld, modal, toast, confirmBox, popMenu, money, checkForm } from '../ui.js';
 import { ui, openBid, closeClient, openClient } from '../nav.js';
 import { teamOptions, ensureClient } from '../actions.js';
 
@@ -134,6 +134,7 @@ export function contactModal(k) {
       { label: 'Save contact', cls: 'btn-primary', onClick: (root) => {
         const g = (n) => root.querySelector(`[name=${n}]`).value.trim();
         if (!g('name')) { root.querySelector('[name=name]').focus(); return false; }
+        if (!checkForm(root)) return false;
         const item = { name: g('name'), role: g('role'), phone: g('phone'), email: g('email') };
         if (k >= 0) list[k] = item; else list.push(item);
         store.update('clients', c.id, { contacts: list });

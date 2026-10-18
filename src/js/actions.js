@@ -4,7 +4,7 @@ import { store } from './store.js';
 import { derived, nextBidNo, sortRevisions, companyOf, companyInfo } from './derive.js';
 import { STATUS, REVISION_STATUSES, RANKS, AUTO_TICK_ON_SUBMIT, OPEN_KEYS } from './config.js';
 import { esc, today, fyOf, parseMoney, inrShort, inr, normName, similarity, fmtDate, signedPct, addDays, groupIndian } from './util.js';
-import { modal, toast, fld, datalist, confirmBox, typedConfirm, icon } from './ui.js';
+import { modal, toast, fld, datalist, confirmBox, typedConfirm, icon, unsavedBox, checkForm, setFieldErr } from './ui.js';
 import { openBid, ui, rerender } from './nav.js';
 import { view } from './derive.js';
 
@@ -104,9 +104,20 @@ export function newBidModal(prefill = {}) {
     </div>
     <div class="dup-slot"></div>
     ${datalist('dl-clients', clients)}${datalist('dl-cons', consultants)}${datalist('dl-locs', locations)}`;
+  let snap = '';
+  const formSnap = (root) => [...root.querySelectorAll('input, select, textarea')].map((el) => `${el.name}=${el.value}`).join('\n')
+    + '|' + [...root.querySelectorAll('[data-scope].on')].map((b) => b.dataset.scope).sort().join(',')
+    + '|' + (root.querySelector('[data-company].on')?.dataset.company || '');
   const m = modal({
     title: 'New bid', sub: 'Only the name, client and enquiry date are needed now. Everything else can be added later.', wide: true, body,
     actions: [{ label: 'Cancel' }, { label: 'Create bid', cls: 'btn-primary', onClick: (root) => createFromModal(root) }],
+    beforeClose: async (root) => {
+      if (formSnap(root) === snap) return true;
+      const choice = await unsavedBox({ title: 'Save this bid?', text: 'This bid has not been created yet. Save it before closing?', save: 'Save bid' });
+      if (choice === 'discard') return true;
+      if (choice === 'save') return createFromModal(root);
+      return false;
+    },
     onMount: (root) => {
       wireMoney(root);
       root.querySelector('[data-scopes]').addEventListener('click', (e) => {
@@ -124,7 +135,7 @@ export function newBidModal(prefill = {}) {
         const slot = root.querySelector('[data-contact-pick]');
         slot.innerHTML = list.length ? `<div class="field" style="margin-bottom:10px"><label for="f_pick">Saved contacts at ${esc(c.name)}</label><select id="f_pick" data-pick>${'<option value="">Choose a saved contact or type a new one below</option>'}${list.map((x, i) => `<option value="${i}">${esc(x.name)}${x.role ? ' · ' + esc(x.role) : ''}</option>`).join('')}</select></div>` : '';
         const sel = slot.querySelector('[data-pick]');
-        if (sel) sel.addEventListener('change', () => { const x = list[+sel.value]; if (!x) return; for (const [f, k] of [['contactName', 'name'], ['contactRole', 'role'], ['contactPhone', 'phone'], ['contactEmail', 'email']]) root.querySelector(`[name=${f}]`).value = x[k] || ''; });
+        if (sel) sel.addEventListener('change', () => { const x = list[+sel.value]; if (!x) return; for (const [f, k] of [['contactName', 'name'], ['contactRole', 'role'], ['contactPhone', 'phone'], ['contactEmail', 'email']]) { const inp = root.querySelector(`[name=${f}]`); if (inp) { inp.value = x[k] || ''; setFieldErr(inp, ''); } } });
       };
       root.querySelector('[name=client]').addEventListener('change', contactPick);
       root.querySelector('[name=client]').addEventListener('input', () => { if (store.all('clients').some((x) => normName(x.name) === normName(val(root, 'client')))) contactPick(); });
@@ -140,6 +151,7 @@ export function newBidModal(prefill = {}) {
       root.querySelector('[name=name]').addEventListener('input', dupCheck);
       root.querySelector('[name=client]').addEventListener('change', dupCheck);
       root.querySelector('.dup-slot').addEventListener('click', (e) => { const a = e.target.closest('[data-dup]'); if (a) { e.preventDefault(); m.close(); openBid(a.dataset.dup); } });
+      snap = formSnap(root);
     },
   });
   return m;
@@ -154,6 +166,7 @@ function createFromModal(root) {
   const rawV = val(root, 'value');
   const v = parseMoney(rawV);
   if (rawV && (v === null || isNaN(v))) { markErr(root, 'value', 'Type an amount like 4.5 cr, 85 L or 8500000.'); return false; }
+  if (!checkForm(root)) return false;
   const client = ensureClient(clientName);
   const scopes = Array.from(root.querySelectorAll('[data-scope].on')).map((b) => b.dataset.scope);
   const company = root.querySelector('[data-company].on')?.dataset.company || 'pvt';
