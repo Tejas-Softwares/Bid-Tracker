@@ -1,0 +1,23 @@
+{
+  "name": "tejas-bid-tracker",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Tejas Group bid tracker: enquiries, tenders, offers, NT items and results, shared by the bid team.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && node scripts/dev-server.mjs",
+    "test": "node build.mjs && node tests/app.test.mjs"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.7",
+    "esbuild": "^0.25.0",
+    "fflate": "^0.8.2"
+  }
+}
