@@ -87,7 +87,7 @@ Check the current prices on vercel.com/pricing and neon.com/pricing before decid
 - The server keeps a copy of everything **every night** (about 2 am India time) and keeps 90 days of them. It also saves one just before anyone restores a backup or deletes everything.
 - Admins see the backups under **Settings, Import, export and backups**, and can download or restore any of them.
 - Once a month, an admin should press **Download a backup file** and keep it in the company OneDrive. That copy is independent of Vercel and Neon.
-- Every action is recorded on the **Activity** screen with the person's name and email. A deleted bid can be brought back from there by an admin.
+- Every action is recorded on the **Activity** screen with the person's name and email for **90 days**, then removed. A deleted bid can be brought back from there by an admin while that entry is still kept.
 - Passwords are stored scrambled (scrypt); nobody, including admins, can read them. After 5 wrong passwords, an email is locked for 15 minutes.
 
 ## 10. If something goes wrong

@@ -142,7 +142,7 @@ export function renderActivity() {
     + (act.more ? `<div style="text-align:center;margin:16px 0"><button class="btn" data-act="act-more" ${act.loading ? 'disabled' : ''}>${act.loading ? 'Loading…' : 'Show older activity'}</button></div>` : `<p class="small muted" style="text-align:center;margin:18px 0">That is everything${act.period === 'all' ? '' : ' for this period'}.</p>`);
 
   return `
-  <p class="lead-in">Every change anyone makes, with their name and email. Entries are written by the server and cannot be edited or removed.${store.isAdmin ? ' As an admin you can bring back a deleted bid from here.' : ''}</p>
+  <p class="lead-in">Every change anyone makes, with their name and email. Entries are written by the server and cannot be edited. They are kept for 90 days, then removed.${store.isAdmin ? ' As an admin you can bring back a deleted bid from here while that entry is still kept.' : ''}</p>
   <div class="status-filter" role="group" aria-label="Kind of activity">
     ${CATS.map(([k, l]) => `<button class="${act.category === k ? 'on' : ''}" data-act="act-cat" data-v="${k}">${k === 'deletes' ? icon('trash') : ''}${esc(l)}</button>`).join('')}
   </div>

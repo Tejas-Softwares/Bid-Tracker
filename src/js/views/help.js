@@ -51,7 +51,7 @@ export function renderHelp() {
   <p>Open the bid, press <b>⋯</b> at the top and choose <b>Delete bid</b>. To make sure it is not a slip, you type <b>DELETE BID</b> before the button works. The deletion is recorded in Activity with your name, and an admin can bring the bid back from there.</p>
 
   <h2>Activity</h2>
-  <p>The <b>Activity</b> screen lists everything anyone has done: bids added, edited, moved or deleted, offers and NT items, notes, clients, sign-ins and changes to accounts and settings. Each line shows the person's name and email and the time. Use the buttons at the top to see one kind of activity (for example <b>Deletions and restores</b>), and the lists to pick a person or a period. Press <b>Details</b> to see exactly what changed, before and after. Entries are written by the server and nobody can edit or remove them.</p>
+  <p>The <b>Activity</b> screen lists everything anyone has done: bids added, edited, moved or deleted, offers and NT items, notes, clients, sign-ins and changes to accounts and settings. Each line shows the person's name and email and the time. Use the buttons at the top to see one kind of activity (for example <b>Deletions and restores</b>), and the lists to pick a person or a period. Press <b>Details</b> to see exactly what changed, before and after. Entries are written by the server and nobody can edit them. They are kept for 90 days, then removed automatically.</p>
 
   <h2>Reports</h2>
   <ul>

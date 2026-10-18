@@ -1,4 +1,4 @@
-// Runs once a day (vercel.json "crons"): saves the daily backup and clears out old sign-in records.
+// Runs once a day (vercel.json "crons"): saves the daily backup and clears old sign-in records and activity.
 import { db } from '../lib/db.js';
 import { send } from '../lib/http.js';
 import { snapshot } from '../lib/records.js';
@@ -12,6 +12,7 @@ export default async function handler(req, res) {
     await q(`delete from login_attempts where at < now() - interval '30 days'`);
     await q(`delete from sessions where expires_at < now()`);
     await q(`delete from resets where expires_at < now() - interval '7 days'`);
+    await q(`delete from activity where at < now() - interval '90 days'`);
     send(res, 200, { ok: true, records: n });
   } catch (e) {
     console.error(e);
