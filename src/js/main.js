@@ -16,7 +16,7 @@ import { renderReports, mountReports } from './views/reports.js';
 import { renderSettings, settingsAction, settingsChange, settingsSubmit } from './views/settings.js';
 import { renderActivity, activityAction, activityChange, activityInput, mountActivity } from './views/activity.js';
 import { renderHelp } from './views/help.js';
-import { renderBidPanel, mountBidPanel, saveField, bidPanelAction } from './views/bidpanel.js';
+import { renderBidPanel, mountBidPanel, saveField, bidPanelAction, uploadDocs } from './views/bidpanel.js';
 import { renderAuth, submitAuth, authState, prepareReset } from './views/auth.js';
 import { exportExcel } from './excel.js';
 import { BRAND } from './brand.gen.js';
@@ -266,6 +266,7 @@ function onChange(e) {
   if (!signedIn) return;
   const el = e.target;
   if (el.closest('#drawer-root')) {
+    if (el.matches('[data-doc-files], [data-doc-folder]')) { uploadDocs(el.files); el.value = ''; return; }
     if (el.dataset.f) { saveField(el); return; }
     if (el.dataset.cf) { saveClientField(el); return; }
   }

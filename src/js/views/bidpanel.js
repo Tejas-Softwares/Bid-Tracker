@@ -3,8 +3,9 @@ import { store } from '../store.js';
 import { derived, companyOf, companyInfo } from '../derive.js';
 import { STATUS, STATUSES, PIPELINE_KEYS, EMD_FORMS, EMD_STATUSES, RANKS } from '../config.js';
 import { esc, fmtDate, fmtDateTime, timeAgo, inr, inrShort, signedPct, pct, dueWords, fyLabel, isURL, parseMoney, fmtTime, addDays } from '../util.js';
-import { fld, datalist, chip, avatar, meter, money, icon, popMenu, toast, setFieldErr, inputIssue } from '../ui.js';
+import { fld, datalist, chip, avatar, meter, money, icon, popMenu, toast, setFieldErr, inputIssue, confirmBox } from '../ui.js';
 import { ui, closeBid, openBid, openClient, rerender } from '../nav.js';
+import { api } from '../server.js';
 import { setStatus, revisionModal, revLabel, setChecklist, deleteBid, duplicateBid, addNote, ensureClient, teamOptions, ownerUid, wireMoney, logEvent, quickNoteModal } from '../actions.js';
 import { ntAddModal, ntEditModal } from '../nt.js';
 import { NT_STATUSES } from '../config.js';
@@ -78,6 +79,90 @@ function tabBody(b, i, d, notes) {
 
 const F = (f, b) => fld({ ...f, value: f.value !== undefined ? f.value : (b[f.name] ?? ''), data: `data-f="${f.name}"${f.type ? ` data-t="${f.type}"` : ''}` });
 
+const docs = { bid: '', files: [], loading: false, error: '', busy: false };
+function sizeFmt(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10 * 1024 ? 1 : 0) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+function docsMarkup(bidId) {
+  if (docs.loading && docs.bid !== bidId) return `<p class="muted small">Loading documents…</p>`;
+  if (docs.bid !== bidId) return `<p class="muted small">Loading documents…</p>`;
+  if (docs.error && !docs.files.length) return `<p class="err-msg">${esc(docs.error)}</p>`;
+  if (!docs.files.length) return `<p class="muted small">No files attached yet.</p>`;
+  const groups = new Map();
+  for (const f of docs.files) {
+    const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : '';
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push(f);
+  }
+  return `<ul class="doc-list">${[...groups.entries()].map(([dir, list]) => `
+    ${dir ? `<li class="doc-dir">${icon('folder')} ${esc(dir)}</li>` : ''}
+    ${list.map((f) => `<li class="doc-file">
+      <span class="grow" style="min-width:0">${icon('file')} <b title="${esc(f.path)}">${esc(f.name)}</b>
+        <span class="small muted">${esc(sizeFmt(f.size))}${f.by ? ` · ${esc(f.by)}` : ''}</span></span>
+      <a class="btn btn-sm" href="/api/files?id=${esc(f.id)}" download="${esc(f.name)}">${icon('download')} Download</a>
+      <button type="button" class="icon-btn" data-act="doc-del" data-id="${esc(f.id)}" data-name="${esc(f.name)}" aria-label="Remove ${esc(f.name)}">${icon('trash')}</button>
+    </li>`).join('')}
+  `).join('')}</ul>${docs.busy ? `<p class="small muted">Uploading…</p>` : ''}`;
+}
+function paintDocs() {
+  const slot = document.querySelector('[data-docs]');
+  if (slot) slot.innerHTML = docsMarkup(ui.bid);
+}
+export async function loadDocs(bidId = ui.bid) {
+  if (!bidId) return;
+  docs.loading = true;
+  try {
+    const r = await api('files', { query: { bid: bidId } });
+    if (ui.bid !== bidId) return;
+    docs.bid = bidId; docs.files = r.files || []; docs.error = '';
+  } catch (e) {
+    if (ui.bid !== bidId) return;
+    docs.bid = bidId; docs.error = e.message; docs.files = docs.bid === bidId ? docs.files : [];
+  } finally { docs.loading = false; paintDocs(); }
+}
+function fileToB64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = String(r.result || '');
+      const i = s.indexOf(',');
+      resolve(i >= 0 ? s.slice(i + 1) : s);
+    };
+    r.onerror = () => reject(new Error('Could not read that file.'));
+    r.readAsDataURL(file);
+  });
+}
+export async function uploadDocs(fileList) {
+  const bidId = ui.bid;
+  const files = [...(fileList || [])];
+  if (!bidId || !files.length) return;
+  docs.busy = true; paintDocs();
+  let ok = 0, skip = 0;
+  try {
+    for (const file of files) {
+      if (file.size > 2 * 1024 * 1024) { skip++; continue; }
+      const content = await fileToB64(file);
+      const path = file.webkitRelativePath || file.name;
+      const r = await api('files', { method: 'POST', body: { action: 'upload', bidId, name: file.name, path, mime: file.type || 'application/octet-stream', content } });
+      if (r.file && docs.bid === bidId) docs.files = [...docs.files, r.file];
+      ok++;
+    }
+    if (docs.bid === bidId) paintDocs();
+    if (ok) toast(ok === 1 ? 'File attached' : `${ok} files attached`);
+    if (skip) toast(`${skip} file${skip === 1 ? ' was' : 's were'} over 2 MB and skipped`);
+  } catch (e) { toast(e.message); await loadDocs(bidId); }
+  finally { docs.busy = false; paintDocs(); }
+}
+function rootFileInput(attr) {
+  const inp = document.querySelector(`.drawer [${attr}]`);
+  if (!inp) return;
+  inp.value = '';
+  inp.click();
+}
+
 function detailsTab(b, i, d) {
   const s = d.settings;
   const team = teamOptions();
@@ -97,7 +182,19 @@ function detailsTab(b, i, d) {
       ${F({ label: "Client's enquiry or RFQ number", name: 'enquiryRef' }, b)}
       ${F({ label: 'Consultant or PMC', name: 'consultant', list: 'dl-p-cons' }, b)}
       <div class="field span-all"><span class="lbl">Scope of work</span><div class="chips-input">${s.scopes.map((x) => `<button type="button" class="tog ${scopes.has(x) ? 'on' : ''}" data-act="toggle-scope" data-scope="${esc(x)}" aria-pressed="${scopes.has(x)}">${esc(x)}</button>`).join('')}${[...scopes].filter((x) => !s.scopes.includes(x)).map((x) => `<button type="button" class="tog on" data-act="toggle-scope" data-scope="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
-      <div class="field span-all"><label for="f_docLink">Tender documents folder</label><div style="display:flex;gap:8px"><input id="f_docLink" type="url" data-f="docLink" data-validate="url" value="${esc(b.docLink || '')}" placeholder="Paste the OneDrive or SharePoint folder link" style="flex:1">${isURL(b.docLink) ? `<a class="btn" href="${esc(b.docLink)}" target="_blank" rel="noopener">${icon('open')} Open</a>` : ''}</div></div>
+      <div class="field span-all"><label for="f_docLink">OneDrive or SharePoint folder (optional)</label>
+        <div style="display:flex;gap:8px"><input id="f_docLink" type="url" data-f="docLink" data-validate="url" value="${esc(b.docLink || '')}" placeholder="Paste a folder link if the documents live in OneDrive" style="flex:1">${isURL(b.docLink) ? `<a class="btn" href="${esc(b.docLink)}" target="_blank" rel="noopener">${icon('open')} Open</a>` : ''}</div>
+      </div>
+      <div class="field span-all"><span class="lbl">Tender documents</span>
+        <p class="hint" style="margin:0 0 8px">Attach files or a folder. They stay with this bid on the tracker, for everyone on the team. Each file up to 2 MB, 20 MB in total.</p>
+        <div data-docs>${docsMarkup(b.id)}</div>
+        <div class="contact-acts" style="margin-top:10px">
+          <button type="button" class="btn btn-sm" data-act="doc-pick">${icon('upload')} Attach files</button>
+          <button type="button" class="btn btn-sm" data-act="doc-folder">${icon('folder')} Attach a folder</button>
+        </div>
+        <input type="file" multiple hidden data-doc-files>
+        <input type="file" webkitdirectory multiple hidden data-doc-folder>
+      </div>
       ${F({ label: 'Remarks', name: 'remarks', type: 'textarea', rows: 2, cls: 'span-all', placeholder: 'Anything the team should know at a glance' }, b)}
     </div>
   </div>
@@ -277,6 +374,7 @@ function resultTab(b, i, d) {
 export function mountBidPanel(root) {
   if (!root) return;
   wireMoney(root);
+  if (root.querySelector('[data-docs]')) loadDocs(ui.bid);
   const slot = root.querySelector('[data-chart="rev"]');
   if (slot && slot.dataset.points) {
     const pts = JSON.parse(slot.dataset.points);
@@ -359,6 +457,19 @@ export function bidPanelAction(act, el) {
       { html: `<span style="color:var(--red);display:flex;gap:9px;align-items:center">${icon('trash')} Delete bid</span>`, onClick: () => deleteBid(b.id) },
     ]); return true;
     case 'open-client-by-name': { if (!b) return true; const c = store.get('clients', b.clientId) || ensureClient(b.client); if (c) openClient(c.id); return true; }
+    case 'doc-pick': rootFileInput('data-doc-files'); return true;
+    case 'doc-folder': rootFileInput('data-doc-folder'); return true;
+    case 'doc-del': {
+      (async () => {
+        if (!(await confirmBox(`Remove ${esc(el.dataset.name || 'this file')} from this bid? The file is deleted from the tracker.`, { title: 'Remove file?', ok: 'Remove', danger: true }))) return;
+        try {
+          await api('files', { method: 'POST', body: { action: 'delete', id: el.dataset.id } });
+          docs.files = docs.files.filter((f) => f.id !== el.dataset.id);
+          paintDocs(); toast('File removed');
+        } catch (e) { toast(e.message); }
+      })();
+      return true;
+    }
     default: return false;
   }
 }

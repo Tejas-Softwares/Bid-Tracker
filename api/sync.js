@@ -28,5 +28,6 @@ export default route(async (req, res) => {
     if (!recent.length) await snapshot(q, kind, user.name);
   }
   const out = await push(q, req, user, b.records, reason);
+  if (reason === 'erase') await q(`delete from bid_files`);
   return send(res, 200, { ...out, cursor: await maxSeq(q) });
 });

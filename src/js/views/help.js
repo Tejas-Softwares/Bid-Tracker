@@ -22,6 +22,7 @@ export function renderHelp() {
   <h2>Adding a bid</h2>
   <p>Press <b>New bid</b> (or the <kbd>N</kbd> key). First pick the company the bid is for: <b>Tejash Electrical Projects Pvt. Limited</b> or <b>Tejas Electrical Proprietorship Projects</b>. Each company has its own bid numbers (TEJ/26-27/001 and TEP/26-27/001). Only the name, client and enquiry date are needed; add the rest when you know it. If a similar bid for the same client already exists, the tracker tells you before you create a duplicate.</p>
   <p>Fill in the <b>Client contact</b> section with the person you deal with on this enquiry. If the client already has saved contacts, pick one from the list. The contact shows on the bid's Details tab, with buttons to call or email.</p>
+  <p>On the bid's Details tab, <b>Tender documents</b> can hold files or a whole folder for that enquiry (each file up to 2 MB). They stay with the bid on the tracker. You can still paste a OneDrive or SharePoint folder link as well.</p>
   <h3>Typing amounts</h3>
   <p>Type amounts the way you say them: <b>4.5 cr</b>, <b>85 L</b>, <b>85 lakh</b>, <b>8500000</b> or <b>85,00,000</b> all work. The box shows what you typed in lakh or crore underneath.</p>
   <h3>Everything saves by itself</h3>

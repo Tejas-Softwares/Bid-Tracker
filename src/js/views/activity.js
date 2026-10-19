@@ -28,6 +28,7 @@ const KIND = {
   delete: ['Deleted', 'del'], restore: ['Restored', 'add'], erase: ['Erased', 'del'], decline: ['Declined', 'del'], disable: ['Turned off', 'del'],
   signin: ['Signed in', 'auth'], signout: ['Signed out', 'auth'], failed: ['Failed sign-in', 'del'], approve: ['Approved', 'add'], enable: ['Turned on', 'add'],
   signup: ['Signed up', 'auth'], setup: ['Set up', 'auth'], role: ['Role', 'edit'], reset: ['Reset link', 'auth'], password: ['Password', 'auth'],
+  file: ['Document', 'edit'],
   import: ['Imported', 'add'], export: ['Exported', 'auth'], sample: ['Sample', 'edit'], backup: ['Backup', 'auth'],
 };
 const ENTITY_ICON = { bid: 'bids', offer: 'rupee', nt: 'list', note: 'note', client: 'clients', auth: 'shield', user: 'user', settings: 'settings', data: 'folder' };
