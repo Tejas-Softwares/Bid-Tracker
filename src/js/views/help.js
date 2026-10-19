@@ -56,7 +56,7 @@ export function renderHelp() {
 
   <h2>Reports</h2>
   <ul>
-    <li><b>Weekly status report</b>: deadlines, bids waiting for a decision, new enquiries, wins and losses since a date you pick. Press <b>Print or save as PDF</b> and choose "Save as PDF" as the printer to email it.</li>
+    <li><b>Weekly status report</b>: deadlines, bids waiting for a decision, new enquiries, wins and losses since a date you pick, with a chart of won, lost and closed bids. Press <b>Print or save as PDF</b> and choose "Save as PDF" as the printer to email it.</li>
     <li><b>Win and loss</b>: win rate by sector, client and person, why bids were lost, and how much was given away in negotiation.</li>
     <li><b>Export</b>: everything as a formatted Excel workbook, including NT items.</li>
   </ul>

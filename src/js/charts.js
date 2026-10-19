@@ -49,6 +49,48 @@ export function hbars(width, rows, opts = {}) {
   return parts.join('');
 }
 
+// Ring chart. slices: [{ name, value, color, display }]
+export function donut(width, slices, opts = {}) {
+  const h = opts.height || 168;
+  const total = slices.reduce((s, p) => s + (Number(p.value) || 0), 0);
+  const cx = 84, cy = h / 2, R = 58, r = 34;
+  const parts = [`<svg class="chart" width="${width}" height="${h}" viewBox="0 0 ${width} ${h}" role="img" aria-label="${esc(opts.label || 'Donut chart')}">`];
+  if (!total) {
+    parts.push(`<text x="${width / 2}" y="${h / 2}" text-anchor="middle" class="muted-t">${esc(opts.empty || 'No data')}</text></svg>`);
+    return parts.join('');
+  }
+  const polar = (rad, a) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+  const ring = (a0, a1) => {
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const [x0, y0] = polar(R, a0), [x1, y1] = polar(R, a1);
+    const [ix0, iy0] = polar(r, a1), [ix1, iy1] = polar(r, a0);
+    return `M${x0},${y0}A${R},${R} 0 ${large} 1 ${x1},${y1}L${ix0},${iy0}A${r},${r} 0 ${large} 0 ${ix1},${iy1}Z`;
+  };
+  let a = -Math.PI / 2;
+  const visible = slices.filter((p) => p.value > 0);
+  if (visible.length === 1) {
+    parts.push(`<path class="mark" d="${ring(-Math.PI / 2, -Math.PI / 2 + Math.PI * 2 - 0.001)}" fill="${visible[0].color}"/>`);
+  } else {
+    visible.forEach((p) => {
+      const sweep = (p.value / total) * Math.PI * 2;
+      const a1 = a + sweep;
+      parts.push(`<path class="mark" d="${ring(a, a1)}" fill="${p.color}" data-tip="${esc(`<b>${esc(p.name)}</b><br>${esc(p.display ?? p.value)}`)}"/>`);
+      a = a1;
+    });
+  }
+  parts.push(`<text x="${cx}" y="${cy - 4}" text-anchor="middle" class="lbl-strong" font-size="18">${esc(opts.center || String(total))}</text>`);
+  if (opts.centerSub) parts.push(`<text x="${cx}" y="${cy + 14}" text-anchor="middle" class="muted-t">${esc(opts.centerSub)}</text>`);
+  let ly = Math.max(18, (h - slices.length * 22) / 2);
+  slices.forEach((p) => {
+    parts.push(`<rect x="176" y="${ly}" width="10" height="10" rx="2" fill="${p.color}"/>`);
+    parts.push(`<text x="192" y="${ly + 9}" class="lbl-strong">${esc(p.name)}</text>`);
+    parts.push(`<text x="${width - 8}" y="${ly + 9}" text-anchor="end" class="tnum muted-t">${esc(p.display ?? p.value)}</text>`);
+    ly += 22;
+  });
+  parts.push('</svg>');
+  return parts.join('');
+}
+
 // Grouped columns. cats: [label], series: [{ name, color, values: [] }]
 export function columns(width, cats, series, opts = {}) {
   const h = opts.height || 220;

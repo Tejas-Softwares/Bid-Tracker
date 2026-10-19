@@ -5,7 +5,7 @@ import { companySelect, companyEmpty } from './common.js';
 import { STATUS, PRE_SUBMIT, AWAITING, OPEN_KEYS, COMPANY } from '../config.js';
 import { esc, today, addDays, fmtDate, inrShort, inr, pct, signedPct, plural, daysBetween, fyLabel, fyOf, groupBy, parseISO } from '../util.js';
 import { icon, chip, avatar, money, meter, emptyState } from '../ui.js';
-import { stackedH, hbars } from '../charts.js';
+import { stackedH, hbars, donut } from '../charts.js';
 import { BRAND } from '../brand.gen.js';
 import { clientRows } from './clients.js';
 
@@ -39,7 +39,25 @@ function weekly(ui, d) {
   const awaiting = d.bids.filter((b) => AWAITING.includes(b.status)).sort((a, b) => (a.submittedDate || '').localeCompare(b.submittedDate || ''));
   const fresh = d.bids.filter((b) => inPeriod(b.receivedDate)).sort((a, b) => a.receivedDate.localeCompare(b.receivedDate));
   const won = d.bids.filter((b) => b.status === 'won' && inPeriod(b.decisionDate || b.poDate));
-  const lost = d.bids.filter((b) => ['lost', 'regret', 'dropped'].includes(b.status) && inPeriod(b.decisionDate));
+  const lostOnly = d.bids.filter((b) => b.status === 'lost' && inPeriod(b.decisionDate));
+  const closed = d.bids.filter((b) => ['regret', 'dropped'].includes(b.status) && inPeriod(b.decisionDate));
+  const lost = [...lostOnly, ...closed];
+  const valOf = (b) => info.get(b.id).value || 0;
+  const wonVal = won.reduce((s, b) => s + valOf(b), 0);
+  const lostVal = lostOnly.reduce((s, b) => s + valOf(b), 0);
+  const closedVal = closed.reduce((s, b) => s + valOf(b), 0);
+  charts = {
+    weeklyCount: [
+      { name: 'Won', value: won.length, color: 'var(--s-won)', display: plural(won.length, 'bid') },
+      { name: 'Lost', value: lostOnly.length, color: 'var(--s-lost)', display: plural(lostOnly.length, 'bid') },
+      { name: 'Closed', value: closed.length, color: 'var(--s-regret)', display: plural(closed.length, 'bid') },
+    ],
+    weeklyValue: [
+      { label: 'Won', value: wonVal, display: inrShort(wonVal, { blank: '₹0' }), color: 'var(--s-won)' },
+      { label: 'Lost', value: lostVal, display: inrShort(lostVal, { blank: '₹0' }), color: 'var(--s-lost)' },
+      { label: 'Closed', value: closedVal, display: inrShort(closedVal, { blank: '₹0' }), color: 'var(--s-regret)' },
+    ],
+  };
   const emd = d.bids.filter((b) => b.emdRequired === 'Yes' && b.emdStatus === 'Submitted');
   const emdOut = emd.reduce((s, b) => s + (b.emdAmount || 0), 0);
   const tbl = (head, rows, empty) => rows.length ? `<div class="tbl-wrap"><table class="tbl compact"><thead><tr>${head.map((h) => `<th class="${/value|offer|amount|price/i.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : `<p class="none">${empty}</p>`;
@@ -56,9 +74,14 @@ function weekly(ui, d) {
       <div class="fig"><div class="lbl">Open bids</div><div class="val">${all.open.length}</div><div class="note"><b>${esc(inrShort(all.openValue))}</b> quoted</div></div>
       <div class="fig"><div class="lbl">Due in 14 days</div><div class="val">${due.length}</div><div class="note">${due.filter((b) => info.get(b.id).daysToDue < 0).length ? `<b style="color:var(--red)">${due.filter((b) => info.get(b.id).daysToDue < 0).length} past deadline</b>` : 'None overdue'}</div></div>
       <div class="fig"><div class="lbl">Waiting for client</div><div class="val">${awaiting.length}</div><div class="note"><b>${esc(inrShort(all.awaitingValue))}</b></div></div>
-      <div class="fig"><div class="lbl">Won since ${esc(fmtDate(since, { short: true }))}</div><div class="val">${won.length}</div><div class="note"><b>${esc(inrShort(won.reduce((s, b) => s + (info.get(b.id).value || 0), 0), { blank: '₹0' }))}</b></div></div>
+      <div class="fig"><div class="lbl">Won since ${esc(fmtDate(since, { short: true }))}</div><div class="val">${won.length}</div><div class="note"><b>${esc(inrShort(wonVal, { blank: '₹0' }))}</b></div></div>
       <div class="fig"><div class="lbl">EMD with clients</div><div class="val">${esc(inrShort(emdOut, { blank: '₹0' }))}</div><div class="note">${plural(emd.length, 'bid')}</div></div>
     </div>
+    <h3>Wins and losses since ${esc(fmtDate(since, { short: true }))}</h3>
+    ${won.length || lost.length ? `<div class="rep-grid wl-charts">
+      <div><div class="small muted" style="margin-bottom:6px">By number of bids</div><div data-chart="weekly-count"></div></div>
+      <div><div class="small muted" style="margin-bottom:6px">By value</div><div data-chart="weekly-value"></div></div>
+    </div>` : `<p class="none">No bids won, lost or closed in this period.</p>`}
     <h3>Submissions due in the next 14 days</h3>
     ${tbl(['No.', 'Bid', 'Client', 'Owner', 'Deadline', 'Checklist', 'Offer value'], due.map((b) => { const i = info.get(b.id); return `<tr><td class="no">${esc(b.no || '')}</td><td><b>${esc(b.name)}</b></td><td>${esc(b.client || '')}</td><td>${esc(b.owner || '—')}</td><td class="nowrap">${esc(fmtDate(b.dueDate))}${i.daysToDue < 0 ? ` <span class="pill red">${plural(-i.daysToDue, 'day')} late</span>` : i.daysToDue <= 2 ? ` <span class="pill red">${i.daysToDue === 0 ? 'Today' : i.daysToDue === 1 ? 'Tomorrow' : 'In 2 days'}</span>` : ''}</td><td class="nowrap">${i.applicable ? `${Math.round((i.readiness || 0) * 100)}%` : '—'}</td><td class="r nowrap">${esc(inrShort(i.value))}</td></tr>`; }), 'No submissions due.')}
     <h3>Waiting for the client's decision</h3>
@@ -165,5 +188,12 @@ export function mountReports(root) {
   const s = root.querySelector('[data-chart="sector"]'); if (s && charts.sectorRows.length) s.innerHTML = stackedH(w(s), charts.sectorRows, { label: 'Won and lost bids by sector', valW: 40 });
   const c = root.querySelector('[data-chart="clients"]'); if (c && charts.clientBars.length) c.innerHTML = stackedH(w(c), charts.clientBars, { label: 'Won and lost bids by client', valW: 40 });
   const r = root.querySelector('[data-chart="reasons"]'); if (r && charts.reasonRows.length) r.innerHTML = hbars(w(r), charts.reasonRows, { label: 'Loss reasons', valW: 60 });
+  const wc = root.querySelector('[data-chart="weekly-count"]');
+  if (wc && charts.weeklyCount) {
+    const n = charts.weeklyCount.reduce((s, p) => s + p.value, 0);
+    wc.innerHTML = donut(w(wc), charts.weeklyCount, { label: 'Wins and losses by count', center: String(n), centerSub: n === 1 ? 'bid' : 'bids' });
+  }
+  const wv = root.querySelector('[data-chart="weekly-value"]');
+  if (wv && charts.weeklyValue) wv.innerHTML = hbars(w(wv), charts.weeklyValue, { label: 'Wins and losses by value', valW: 72 });
 }
 export { prefs, parseISO, meter };

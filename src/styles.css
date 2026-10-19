@@ -706,7 +706,8 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
   .doc { border: 0; padding: 0; max-width: none; }
   .tbl-wrap { border: 1px solid #ccd; overflow: visible; }
   .tbl th { background: #eef1f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .chip, .pill, .meter > i, .doc-head { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .chip, .pill, .meter > i, .doc-head, .chart, .chart .mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .wl-charts { break-inside: avoid; }
   tr { break-inside: avoid; }
   .doc .figs { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
   .doc .fig { border-bottom: 0 !important; padding: 10px 14px; }
